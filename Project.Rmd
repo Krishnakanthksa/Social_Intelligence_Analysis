@@ -1,0 +1,623 @@
+---
+title: "Assignment Report"
+author: "krishnakanth"
+date: "2024-05-28"
+output:
+  word_document: default
+  pdf_document: default
+editor_options:
+  markdown:
+    wrap: sentence
+---
+
+# Name - Krishnakanth Kuruvachira Sabu
+
+# Student ID - 22078053
+
+# Declaration
+
+**By including this statement, we the authors of this work, verify that:**
+
+```         
+**• I hold a copy of this assignment that we can produce if the original is lost or damaged.**
+
+**• I hereby certify that no part of this assignment/product has been copied from any other student’s work**
+**or from any other source (including generative sources) except where due acknowledgement is made in**
+**the assignment.**
+
+**• No part of this assignment/product has been written/produced for us by another person except where**
+**such collaboration has been authorised by the subject lecturer/tutor concerned.**
+
+**• I am aware that this work may be reproduced and submitted to plagiarism detection software programs
+**for the purpose of detecting possible plagiarism (which may retain a copy on its database for future**
+**plagiarism checking).**
+
+**• I hereby certify that we have read and understand what the School of Computer, Data and Mathematical**
+**Science defines as minor and substantial breaches of misconduct as outlined in the learning guide for**
+**this unit.**
+```
+
+## Loading Libraries
+
+```{r warning=FALSE}
+library(rtoot)
+library(tidyverse)
+library(igraph)
+library(lpSolve)
+```
+
+## Question 1
+
+By using rtoot library in R which we can connect to the required API from Mastodon API.
+we downloaded the set of toots which contain the given Hashtag - #WSUCOMP7025
+
+Use the rtoot library in R to connect to the Mastodon API and download the set of toots that contain the hashtag #WSUCOMP7025.
+Write the code to use the downloaded data to provide a table showing each server (e.g. mastodon.social) and the count of the number of toots containing #WSUCOMP7025 provided by that server.
+
+### Setting the setup
+
+```{r}
+#auth_setup()
+```
+
+This setup only need to do once.
+
+### Loading the data
+
+We are gathering all the data by using the hashtag #WSUCOMP7025.
+we collect it from mastodon.social which we given a limit of getting the toots to 500 that will result to get about 500 toots from the server.
+
+```{r}
+toot <- get_timeline_hashtag(hashtag = "#WSUCOMP7025", instance = "mastodon.social", limit = 500)
+```
+
+### Working on the data
+
+Check the number of rows in our toot variable.
+
+```{r}
+nrow(toot)
+```
+
+We have 50 rows represents 50 users.
+
+For each of thee toots, Split and extract the URI.
+
+```{r}
+toot.words <- strsplit(toot$uri, "[^A-Za-z]+")
+head(toot.words, 5)
+```
+
+### Counting the number of toots in each server
+
+We need a loop to take the count of the toots in each server.
+
+```{r}
+servers = c()
+
+for(i in 1:length(toot.words)){
+  combined_toots = paste(toot.words[[i]][[1]],".",toot.words[[i]][[2]], collapse = "")
+  combined_toots = gsub(" ", "", combined_toots)
+  servers = c(servers, combined_toots)
+}
+```
+
+Create a table which have the number of toots on each server.
+
+```{r}
+count <- table(servers)
+count
+```
+
+### Result and Conclusion
+
+https.mastodon server has 36 which is the most number of user in the given API even though there are some users under different servers.
+and the rest have 5 and below.
+
+## Question 2
+
+For each toot author obtained, download the details of the accounts that they follow and write the code to create a directed graph showing each author as a node and the edges showing who follows who.
+Compute the number of components in the graph and the size of each component.
+Plot the largest component of the graph (do your best to make it visually appealing).
+Comment on the structure of the graph.
+For the remainder of the project, we will only use the largest component of the graph.
+
+### Gather the data.
+
+Gather the unique ID and username from the server.
+
+```{r}
+account_usernames <- c()
+account_ids <- c()
+
+for(i in 1:nrow(toot)){
+  account_username <- toot$account[[i]]$acct
+  account_id <- toot$account[[i]]$id
+  
+  account_ids <- c(account_ids, account_id)
+  account_usernames <- c(account_usernames, account_username)
+}
+```
+
+Collect the unique ids and usernames and save to the variables.
+
+```{r}
+acc_id = unique(account_ids)
+acc_user = unique(account_usernames)
+```
+
+check for the usernames in the server.
+
+```{r}
+acc_user
+```
+
+### Get the following list.
+
+Get each user detail's following list consist of there names and id.
+
+```{r warning=FALSE}
+follower_id = c()
+follower_name = c()
+
+for (i in acc_id){
+  follow_ids = get_account_following(i)$id
+  follow_name = get_account_following(i)$acct
+    
+    
+  follower_id = c(follower_id, follow_ids)
+  follower_name = c(follower_name, follow_name)
+}
+```
+
+### Avoid Repeated users.
+
+combine them and get the unique ids and usernames to avoid repeated users.
+
+```{r}
+follow_id_list = c(follower_id, acc_id)
+list = unique(follow_id_list)
+
+follow_user_list = c(follower_name, acc_user)
+list2 = unique(follow_user_list)
+```
+
+### Plot the directed graph
+
+To plot the graph, Creating an adjacent matrix having initial values zero.
+Give the row names and column names as the user id.
+
+```{r}
+mat <- matrix(0, nrow = length(list), ncol = length(list2))
+rownames(mat) = list
+colnames(mat) = list
+```
+
+Replace 1 instead of zero.
+
+```{r warning=FALSE}
+for (i in acc_id){
+  id_fol = get_account_following(i)$id
+  
+  for(j in id_fol){
+    mat[i,j] = 1
+  }
+}
+
+rownames(mat) = list2 
+colnames(mat) = list2
+```
+
+### Plot the graph from adjacent matrix.
+
+```{r warning=FALSE}
+graph1 = graph.adjacency(mat)
+
+plot(graph1, vertex.size = 12, edge.arrow.size = 0.3,  vertex.label.cex = 0.8)
+```
+
+### Finding the total number of components
+
+Total number of components : `r components(graph1)$no`
+
+### Calculating the size of each component
+
+Size of the components : `r components(graph1)$csize`
+
+### Plot the directed graph for the largest component
+
+Use "which.max" function.
+
+```{r}
+n = which.max(components(graph1)$csize)
+
+nodes = which(components(graph1)$membership == 1)
+
+larg_component = induced_subgraph(graph1, nodes)
+```
+
+### Plot the largest component.
+
+```{r}
+plot(larg_component, vertex.size = 12, edge.arrow.size = 0.3,  vertex.label.cex = 0.8)
+```
+
+### Structure of the graph
+
+This structure of the graph represents the user's account and the relation with each nodes, relations are represented by edges.
+
+The observations we get on the graph:
+
+1.  **Nodes and Edges :** Nodes of the graph represents the username of the account on the server. Edges represent their connection of following. The arrow shows the user following the corresponding account. The arrow have both the sides shows that both the accounts follow each other.
+2.  **Connection :** The connection represents the connection between the users within the server. The graph shows the two clusters of nodes which connects each other strongly, but the connection of the two groups is weak where there are only few connections within the nodes.
+3.  **Lone Nodes :** There are some nodes in the graph that are alone which depicts they don't have any relation with other users, this represents their nature of being not that active on the server.
+
+### Result
+
+There are total of `r components(graph1)$no` components in the graph with each of the component having the size of `r components(graph1)$csize`.
+
+### Conclusion
+
+After plotting the largest component of the graph, we observed that some users are isolated and inactive on this platform, while others have strong, interconnected relationships.
+The graph reveals a complex yet clear depiction of user's connections, forming clusters that likely represent social groups of friends.
+
+## Question 3
+
+Compute and report the diameter and density of the graph.
+Plot the in-degree distribution of the graph and estimate the Power Law coefficient (c) from the in-degree distribution.
+Briefly explain what this coefficient reveals about the graph.
+
+### Find the diameter
+
+The diameter of the largest component shown above can be determined using the built-in function "diameter".
+
+```{r}
+dia <- diameter(larg_component)
+dia
+```
+
+Diameter is `r dia`.
+
+### Find the density
+
+Find the density of the graph using edge_density function.
+
+```{r}
+graph_density <- edge_density(larg_component)
+graph_density
+```
+
+The density of the graph is `r graph_density`
+
+### Find and plot the in-degree distribution
+
+```{r}
+indeg = degree(larg_component, mode = "in")
+hist(indeg, col = "#008080")
+```
+
+### Convert to probability
+
+By finding the in-degree distribution we can convert the distribution into probability
+
+```{r}
+prob = table(indeg) / sum(table(indeg))
+k_val  = as.numeric(names(prob))
+```
+
+```{r}
+plot(log(k_val), log(prob), type = "l")
+```
+
+### Coefficient of power law
+
+Create a linear model with probability and k value
+
+```{r}
+lin_model <- lm(log(prob) ~ log(k_val))
+lin_model
+```
+
+### Extract the power law coefficient
+
+```{r}
+coeff <- lin_model$coefficients[2]
+coeff
+```
+
+The power law coefficient is : `r coeff`
+
+### Result and Conclusion
+
+The power law coefficient of about `r coeff` suggests that fewer nodes have many connections, indicating a scale-free structure.
+The linear model suggests that as node connections increase, the likelihood decreases.
+This points to a network with influential hubs and diverse connections.
+
+## Question 4
+
+The Web can be shown to have a “Giant Strongly Connected” Component, an “In” component, and “Out” component, and also have tendrils and tubes.
+Decompose the author graph into these components and provide a plot clearly showing each component.
+
+### Find strongly connected components
+
+Divide the graph into strongly connected components and get the largest component
+
+```{r}
+strong_component = components(larg_component, mode = "strong")
+strong_component
+```
+
+### Extract the largest strongly connected component
+
+Extract the largest strongly connected component
+
+```{r}
+larg_strong_comp_ind = which.max(strong_component$csize)
+
+larg_strongcomp_node = which(strong_component$membership == larg_strong_comp_ind)
+
+larg_strong_comp = induced_subgraph(larg_component,larg_strongcomp_node)
+```
+
+we have the index of all the nodes connected to the largest strongly connected graph
+
+### Plot the largest strongly connected component
+
+```{r}
+plot(larg_strong_comp, vertex.size = 12, edge.arrow.size = 0.3,  vertex.label.cex = 0.8)
+```
+
+### Find the "IN" Component
+
+Find all the node's IN component and avoid the nodes of the strongly connected graph
+
+```{r}
+in_comp_node = subcomponent(larg_component, larg_strongcomp_node[1], mode = "in")
+
+in_comp_node = setdiff(in_comp_node, larg_strongcomp_node)
+```
+
+Extract all of the components that are eligible as 'in' component
+
+```{r}
+in_comp = induced_subgraph(larg_component, in_comp_node)
+
+plot(in_comp, vertex.size = 12, edge.arrow.size = 0.3,  vertex.label.cex = 0.8)
+```
+
+### Find "OUT" Component
+
+Find the out components and go through the node difference on strongly connected graph.
+
+```{r}
+out_comp_node = subcomponent(larg_component, larg_strongcomp_node[1], mode = "out")
+
+out_comp_node = setdiff(out_comp_node, larg_strongcomp_node)
+```
+
+Extract all of the components that are eligible as the OUT component
+
+```{r}
+out_comp = induced_subgraph(larg_component, out_comp_node)
+
+plot(out_comp, vertex.size = 12, edge.arrow.size = 0.3,  vertex.label.cex = 0.8)
+```
+
+### Find largest "IN" component
+
+We identified several components that could potentially be the largest IN components.
+Determine which one is the largest IN component.
+
+```{r}
+in_comps <- components(in_comp, mode = "strong")
+
+larg_in_comp <- which.max(in_comps$csize)
+```
+
+Go through the number of nodes and induce the in-component
+
+```{r}
+larg_incomp_node <- which(in_comps$membership == larg_in_comp)
+
+deduce_in_comp <- induced_subgraph(in_comp, larg_incomp_node)
+```
+
+Plot and find the visualized graph of largest in-component
+
+```{r}
+plot(deduce_in_comp, vertex.size = 12, edge.arrow.size = 0.3,  vertex.label.cex = 0.8)
+```
+
+### Find the largest "OUT" component
+
+We identified several components that could potentially be the largest OUT components.
+now lets determine which one is the largest out component.
+
+```{r}
+out_comps <- components(out_comp, mode = "strong")
+
+larg_out_comp <- which.max(out_comps$csize)
+```
+
+Go through the number of nodes and induce the out-component
+
+```{r}
+larg_outcomp_node <- which(out_comps$membership == larg_out_comp)
+
+deduce_out_comp <- induced_subgraph(out_comp, larg_outcomp_node)
+```
+
+Now lets plot and find the visualized graph of largest out-component
+
+```{r}
+plot(deduce_out_comp, vertex.size = 12, edge.arrow.size = 0.3,  vertex.label.cex = 0.8)
+```
+
+### Find the nodes for tendrils and tubes
+
+Before identifying the tendrils and tubes nodes, we will first determine the nodes that can belong to these categories, and then classify them into tendrils and tubes.
+
+```{r}
+total_nodes <- union(union(larg_strongcomp_node, larg_incomp_node), larg_outcomp_node)
+
+rem_nodes <- setdiff(V(larg_component), total_nodes)
+```
+
+```{r}
+tendrils <- c()
+tubes <- c()
+
+for (node in rem_nodes) {
+  innodes_incomponent <- any(subcomponent(larg_component, node, mode = "in") %in% larg_incomp_node)
+  outnodes_outcomponent <- any(subcomponent(larg_component, node, mode = "out") %in% larg_incomp_node)
+  nodesin_outcomponent <- any(subcomponent(larg_component, node, mode = "in") %in% larg_outcomp_node)
+  nodesout_outcomponent <- any(subcomponent(larg_component, node, mode = "out") %in% larg_outcomp_node)
+
+  if (innodes_incomponent & nodesout_outcomponent) {
+    tubes <- c(tubes, node)
+  } else if (innodes_incomponent | outnodes_outcomponent | nodesin_outcomponent | nodesout_outcomponent) {
+    tendrils <- c(tendrils, node)
+  }
+}
+```
+
+After identifying the nodes, we will categorize them into tendrils and tubes.
+
+### Classifying the nodes into tendrils and tubes
+
+```{r}
+tendrils_comp <- induced_subgraph(larg_component, tendrils)
+
+tubes_comp <- induced_subgraph(larg_component, tubes)
+```
+
+### Plot the tendrils and tube components
+
+```{r}
+plot(tendrils_comp, vertex.size = 12, edge.arrow.size = 0.3,  vertex.label.cex = 0.8)
+```
+
+```{r}
+plot(tubes_comp, vertex.size = 12, edge.arrow.size = 0.3,  vertex.label.cex = 0.8)
+```
+
+## Question 5
+
+The popularity of each Mastodon account can be measured using PageRank.
+Measure the popularity of each Mastodon account using the Scaled PageRank algorithm, with α = 0.85.
+Report the ten most popular accounts and their PageRank score, and compare the results to the in-degree of each vertex.
+
+### Create matrix
+
+Find the page rank using adjacent matrix
+
+```{r}
+Adj_matrix <- as.matrix(as_adjacency_matrix(larg_component))
+```
+
+### Avoid the Nan values.
+
+```{r}
+Adj_matrix = Adj_matrix + 1e-5
+```
+
+### Convert the adjacent values into probabilities.
+
+```{r}
+prob_matrix = Adj_matrix %*% diag(1 / colSums(Adj_matrix))
+
+n = nrow(prob_matrix)
+jump  = matrix(1/n, n, n)
+alpha = 0.85
+
+ini_pgrank = alpha * prob_matrix + (1 - alpha) * jump
+```
+
+### Increment the page rank
+
+```{r}
+rank_val = rep(1/n, n)
+
+for(k in 1:10^4){
+  rank_val = ini_pgrank %*% rank_val
+}
+
+head(rank_val,20)
+```
+
+### Display the top 10 most popular users
+
+Create a data frame with top ten users and their page rank.
+
+```{r}
+ranks = data.frame(rankpages = rank_val) %>% arrange(desc(rankpages))
+
+head(ranks,10)
+```
+
+### Data frame for rankings
+
+```{r}
+indeg_ranks = data.frame(indeg_rankpages = degree(larg_component)) %>% arrange(desc(indeg_rankpages))
+
+head(indeg_ranks,10)
+```
+
+### Result and Conclusion
+
+Both the PageRank and in-degree values reveal that 7 out of 10 users are common in both sides, despite the differing order.
+This suggests that both metrics reflect the strength and influence of users within the network.
+PageRank indicates the potential influence these users have on the network, while in-degree reflects their ability to propagate activities both within and potentially outside the network.
+
+## Question 6
+
+The Department of Education want to investigate a larger student social network covering one of the University campuses.
+If the chosen campus can be predicted by others, the social network of students could be artificially modified to support an agenda and bias the results.
+So the Department of Education needs to be strategic about which campus they choose to minimise the risk of bias.
+A set of factors were taken into account to provide the following payoff matrix for campus choice.
+The columns show the choice of campus from the Department of Education and the rows show the choice made by those who want to bias the results.
+
+Compute the probability distribution over campuses that the Department of Education should use in order to be the least predictable to reduce the risk of obtaining biased results.
+
+### Create a payoff matrix
+
+```{r}
+payoff = matrix(c(1, 0.2, 0.1,
+                  0.5, 1, 0.2,
+                  0.4, 0.2, 1), nrow = 3, byrow = TRUE)
+```
+
+Check the probability of the matrix stays up to 1.
+
+```{r}
+X = rbind(cbind(c(1,1,1), -payoff), c(0,1,1,1))
+X
+```
+
+### Solve the linear equation
+
+We will define the parameters of the linear equation problem with constraints using "greater than or equal to" inequalities.
+
+```{r}
+x = lp(direction = "max", objective.in = c(1,0,0,0), const.mat = X,
+       const.dir = c("<=", "<=", "<=", "=="), const.rhs = c(0,0,0,1))
+```
+
+### Probability distribution
+
+```{r}
+prob_dist <- matrix(x$solution[2:4], nrow = 1, byrow = TRUE)
+```
+
+To make the values presentable, we will add names to the columns and include their corresponding probability distributions.
+
+```{r}
+colnames(prob_dist) <- c("Parramatta", "Kingswood", "Campbelltown")
+
+prob_dist
+```
+
+### Result and Conclusion
+
+The probabilities presented in the output and depicted in the plot represent the optimal strategy for the Department of Education to choose among the three schools.
+This strategy aims to minimize the risk of biased results by ensuring a fair and unpredictable selection process.
